@@ -20,6 +20,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { WebSocketServer, WebSocket } from "ws";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || process.env.OMEGA_VPS_PORT || 8790);
@@ -579,7 +580,6 @@ function snapshot() {
     service: "omega-vps",
     startedAt: new Date(startedAt).toISOString(),
     publicUrl: state.publicUrl || null,
-    hubKey: config.hubKey,
     termuxUrl: config.termux.url,
     termuxConfigured: Boolean(config.termux.key),
     peers: Object.values(state.peers),
@@ -593,6 +593,28 @@ function snapshot() {
     },
   };
 }
+
+function websocketKey(request) {
+  const url = new URL(request.url || "/", `http://${request.headers.host || "vps"}`);
+  return request.headers["x-api-key"] || url.searchParams.get("key") || "";
+}
+
+const meshWss = new WebSocketServer({ noServer: true });
+const meshSockets = new Set();
+
+function broadcastSnapshot() {
+  const payload = JSON.stringify({ type: "snapshot", snapshot: snapshot() });
+  for (const socket of meshSockets) {
+    if (socket.readyState === WebSocket.OPEN) socket.send(payload);
+  }
+}
+
+meshWss.on("connection", (socket) => {
+  meshSockets.add(socket);
+  socket.send(JSON.stringify({ type: "snapshot", snapshot: snapshot() }));
+  socket.on("close", () => meshSockets.delete(socket));
+  socket.on("error", () => meshSockets.delete(socket));
+});
 
 async function handleMcp(req, res, bodyText) {
   if (req.method === "GET") {
@@ -817,6 +839,18 @@ const server = http.createServer(async (req, res) => {
     send(res, 500, { error: String(err.message || err) });
   }
 });
+
+server.on("upgrade", (request, socket, head) => {
+  const pathname = new URL(request.url || "/", `http://${request.headers.host || "vps"}`).pathname;
+  const authHeaders = { ...request.headers, "x-api-key": websocketKey(request) };
+  if (pathname !== "/v1/ws" || !authorized({ headers: authHeaders })) {
+    socket.destroy();
+    return;
+  }
+  meshWss.handleUpgrade(request, socket, head, (ws) => meshWss.emit("connection", ws, request));
+});
+
+setInterval(broadcastSnapshot, 5000).unref();
 
 server.listen(PORT, HOST, async () => {
   logLine({ kind: "boot", port: PORT, host: HOST });
