@@ -15,6 +15,28 @@ HUB_KEY = os.environ.get("OMEGA_HUB_KEY", "")
 NODE = os.environ.get("OMEGA_NODE_ID", "termux")
 LOG = os.environ.get("OMEGA_REVERSE_LOG", os.path.expanduser("~/.omega-reverse.log"))
 
+TERMUX_TOOLS = [
+    {
+        "name": "termux_exec",
+        "description": "Run a short shell command on the connected Termux phone.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"command": {"type": "string"}, "timeout": {"type": "integer"}},
+            "required": ["command"],
+        },
+    },
+    {
+        "name": "battery_status",
+        "description": "Read the Termux phone battery status.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "connector_health",
+        "description": "Read Termux connector health.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+]
+
 
 def die(msg: str) -> None:
     print(f"[omega-reverse] {msg}", file=sys.stderr)
@@ -97,7 +119,11 @@ def main() -> None:
     if "--daemon" in sys.argv:
         daemonize()
     print(f"[omega-reverse] connecting {NODE} -> {HUB_URL}", flush=True)
-    hello = req("POST", "/v1/reverse/hello", {"node": NODE, "role": "phone"})
+    hello = req(
+        "POST",
+        "/v1/reverse/hello",
+        {"node": NODE, "role": "phone", "tools": TERMUX_TOOLS},
+    )
     print("[omega-reverse] hub accepted", json.dumps(hello.get("hub", {}))[:500], flush=True)
     echoed = req(
         "POST",

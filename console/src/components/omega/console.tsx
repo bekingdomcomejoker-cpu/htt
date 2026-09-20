@@ -127,8 +127,8 @@ function UnlockGate() {
         </p>
         <h1 className="text-4xl font-medium tracking-tight">OMEGA Mesh</h1>
         <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-          This console joins the stable Render gateway and shows the two live
-          Omega peers: the VPS hub and the reverse-connected Termux node.
+          This console joins the unified Omega VPS mesh and shows both live
+          peers: the VPS hub and the reverse-connected Termux node.
         </p>
       </div>
       <Card className="rounded-xl p-1">
@@ -137,7 +137,7 @@ function UnlockGate() {
             <div>
               <p className="text-sm font-medium">Bridge</p>
               <p className="text-xs text-muted-foreground">
-                Health does not need a key. Tools do.
+                Health does not need a key. Use the OMEGA_HUB_KEY for tools.
               </p>
             </div>
             <Badge variant={live ? "live" : "warn"}>
@@ -164,7 +164,7 @@ function UnlockGate() {
                 onChange={(e) => setKey(e.target.value)}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder="Termux MCP token"
+                placeholder="Omega hub key"
               />
             </div>
             <Button type="submit" className="w-full" disabled={busy || key.length < 8}>

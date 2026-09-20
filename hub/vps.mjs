@@ -102,6 +102,38 @@ const HUB_TOOLS = [
   },
 ];
 
+const FALLBACK_TERMUX_TOOLS = [
+  {
+    name: "termux_exec",
+    description: "Run a short shell command on the connected Termux phone.",
+    inputSchema: {
+      type: "object",
+      properties: { command: { type: "string" }, timeout: { type: "integer", default: 20 } },
+      required: ["command"],
+    },
+  },
+  {
+    name: "battery_status",
+    description: "Read the connected Termux phone battery status.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "connector_health",
+    description: "Read Termux connector health and status.",
+    inputSchema: { type: "object", properties: {} },
+  },
+];
+
+function advertisedTools(termuxTools = null) {
+  const byName = new Map(HUB_TOOLS.map((tool) => [tool.name, tool]));
+  for (const tool of FALLBACK_TERMUX_TOOLS) byName.set(tool.name, tool);
+  const dynamicTools = termuxTools ?? state.termuxTools;
+  for (const tool of dynamicTools) {
+    if (tool && typeof tool.name === "string") byName.set(tool.name, tool);
+  }
+  return [...byName.values()];
+}
+
 function now() {
   return new Date().toISOString();
 }
@@ -186,7 +218,7 @@ const state = {
       via: "local",
       status: "live",
       lastSeen: now(),
-      tools: HUB_TOOLS.map((t) => t.name),
+      tools: advertisedTools([]).map((t) => t.name),
       latencyMs: 0,
     },
     termux: {
@@ -613,14 +645,16 @@ async function handleMcp(req, res, bodyText) {
     return;
   }
   if (method === "tools/list") {
-    send(res, 200, rpcResult(id, { tools: HUB_TOOLS }));
+    send(res, 200, rpcResult(id, { tools: advertisedTools() }));
     return;
   }
   if (method === "tools/call") {
     try {
       const name = params?.name;
       const args = params?.arguments || {};
-      const result = await runHubTool(name, args);
+      const result = HUB_TOOLS.some((tool) => tool.name === name)
+        ? await runHubTool(name, args)
+        : await invokeNode("termux", name, args);
       send(
         res,
         200,
@@ -649,11 +683,16 @@ async function handleReverse(req, res, pathname, bodyText) {
     state.peers.termux.status = "live";
     state.peers.termux.lastSeen = now();
     logLine({ kind: "reverse-hello", node: nodeId });
+    const advertised = Array.isArray(body.tools) ? body.tools : [];
+    if (advertised.length) {
+      state.termuxTools = advertised.filter((tool) => tool && typeof tool.name === "string");
+      state.peers.termux.tools = state.termuxTools.map((tool) => tool.name);
+    }
     send(res, 200, {
       ok: true,
       assigned: "termux",
       hub: hubInfo(),
-      tools: HUB_TOOLS.map((t) => t.name),
+      tools: advertisedTools().map((t) => t.name),
     });
     return;
   }
