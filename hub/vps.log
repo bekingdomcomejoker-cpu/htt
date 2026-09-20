@@ -1,5 +1,0 @@
-{"t":"2026-09-20T15:01:35.399Z","kind":"boot","port":8790,"host":"0.0.0.0"}
-{"t":"2026-09-20T15:01:37.207Z","kind":"termux-hello","via":"ngrok","battery":{"jsonrpc":"2.0","id":496755,"result":{"content":[{"type":"text","text":"{\n  \"present\": true,\n  \"technology\": \"Li-poly\",\n  \"health\": \"GOOD\",\n  \"plugged\": \"PLUGGED_AC\",\n  \"status\": \"CHARGING\",\n  \"temperature\": 35.2,\n  \"voltage\": 4166,\n  \"current\": 640000,\n  \"current_average\": 714400,\n  \"percentage\": 70,\n  \"level\": 70,\n  \"scale\": 100,\n  \"charge_counter\": 3429300\n}\n"}]}}}
-{"t":"2026-09-20T15:02:00.846Z","kind":"invoke","node":"termux","tool":"battery_status","args":{}}
-{"t":"2026-09-20T15:09:09.371Z","kind":"reverse-hello","node":"termux"}
-{"t":"2026-09-20T15:09:09.723Z","kind":"echo","from":"mcp","message":"termux reverse-connected pid=6948"}

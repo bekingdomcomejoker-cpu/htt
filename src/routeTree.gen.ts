@@ -17,6 +17,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ControlPlaneRoute = ControlPlaneRouteImport.update({
+  id: '/control-plane',
+  path: '/control-plane',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 const ControlPlaneRoute = ControlPlaneRouteImport.update({
   id: '/control-plane',

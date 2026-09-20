@@ -3,3 +3,8 @@ node_modules/
 .github_repo
 .env
 .env.*
+
+# Runtime-only Omega hub state and credentials
+hub/config.json
+hub/public-url.txt
+hub/*.log

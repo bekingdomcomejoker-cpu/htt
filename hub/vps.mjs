@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Omega VPS — mesh hub that reverse-connects two nodes.
- * Listens on 127.0.0.1:8790 (also 0.0.0.0 so the cloudflare tunnel can bind).
+ * Listens on the platform-provided port when hosted, or 8790 locally.
  */
 import http from "node:http";
 import { execFile } from "node:child_process";
@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.OMEGA_VPS_PORT || 8790);
+const PORT = Number(process.env.PORT || process.env.OMEGA_VPS_PORT || 8790);
 const HOST = process.env.OMEGA_VPS_HOST || "0.0.0.0";
 const CONFIG_PATH = path.join(ROOT, "config.json");
 const PUBLIC_URL_PATH = path.join(ROOT, "public-url.txt");
@@ -126,20 +126,39 @@ function logLine(entry) {
 
 function loadConfig() {
   mkdirSync(ROOT, { recursive: true });
+  const envConfig = {
+    hubKey: process.env.OMEGA_HUB_KEY || "",
+    termux: {
+      url: process.env.OMEGA_TERMUX_URL || "",
+      key: process.env.OMEGA_TERMUX_KEY || "",
+    },
+  };
+  if (process.env.RENDER || process.env.NODE_ENV === "production") {
+    if (!envConfig.hubKey) {
+      throw new Error("Production hub requires OMEGA_HUB_KEY");
+    }
+    return envConfig;
+  }
   if (existsSync(CONFIG_PATH)) {
     try {
-      return JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+      const fileConfig = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
+      return {
+        ...fileConfig,
+        ...(envConfig.hubKey ? { hubKey: envConfig.hubKey } : {}),
+        termux: {
+          ...(fileConfig.termux || {}),
+          ...(envConfig.termux.url ? { url: envConfig.termux.url } : {}),
+          ...(envConfig.termux.key ? { key: envConfig.termux.key } : {}),
+        },
+      };
     } catch {
       /* fall through */
     }
   }
-  const cfg = {
-    hubKey: randomBytes(32).toString("hex"),
-    termux: {
-      url: "https://direction-egotistic-citric.ngrok-free.dev",
-      key: "397c67fc49ef7b92675e57b739197b1aab4926ab86d2742af92085a816162792",
-    },
-  };
+  if (envConfig.hubKey && envConfig.termux.url && envConfig.termux.key) {
+    return envConfig;
+  }
+  const cfg = { hubKey: randomBytes(32).toString("hex"), termux: {} };
   writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), { mode: 0o600 });
   return cfg;
 }
@@ -763,6 +782,10 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, async () => {
   logLine({ kind: "boot", port: PORT, host: HOST });
   console.log(`[omega-vps] listening on ${HOST}:${PORT}`);
+  if (!config.termux.url || !config.termux.key) {
+    console.log("[omega-vps] waiting for reverse-connected Termux");
+    return;
+  }
   try {
     await ensureTermuxSession();
     const batt = await callTermuxTool("battery_status", {});
