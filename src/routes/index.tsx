@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
@@ -206,6 +206,11 @@ function Home() {
               Both directions are live. This sandbox is the hub. Termux is a peer.
               Either side can call the other through the VPS.
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/control-plane" className="rounded-xl border border-line bg-surface px-3 py-2 text-xs text-muted hover:text-fg">
+              Control Plane
+            </Link>
           </div>
           <div className="flex items-center gap-3 rounded-2xl bg-surface px-4 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <Radio className="size-4 text-live" />
