@@ -28,6 +28,7 @@ const HOST = process.env.OMEGA_VPS_HOST || "0.0.0.0";
 const CONFIG_PATH = path.join(ROOT, "config.json");
 const PUBLIC_URL_PATH = path.join(ROOT, "public-url.txt");
 const LOG_PATH = path.join(ROOT, "vps.log");
+const PROFILE_PATH = path.join(ROOT, "profiles.enc.json");
 const MAX_LOG = 200;
 const MAX_OUTPUT = 32_000;
 
@@ -594,6 +595,24 @@ function snapshot() {
   };
 }
 
+function readEncryptedProfiles() {
+  try { return JSON.parse(readFileSync(PROFILE_PATH, "utf8")); } catch { return { version: 1, blob: null, updatedAt: null }; }
+}
+
+function writeEncryptedProfiles(payload) {
+  writeFileSync(PROFILE_PATH, JSON.stringify({ version: 1, blob: String(payload.blob || ""), updatedAt: now() }));
+}
+
+async function handleProfile(req, res, bodyText) {
+  if (req.method === "GET") { send(res, 200, readEncryptedProfiles()); return; }
+  if (req.method !== "PUT") { send(res, 405, { error: "method not allowed" }); return; }
+  let payload;
+  try { payload = JSON.parse(bodyText || "{}"); } catch { send(res, 400, { error: "invalid json" }); return; }
+  if (!payload.blob || typeof payload.blob !== "string" || payload.blob.length > 200000) { send(res, 400, { error: "invalid encrypted profile blob" }); return; }
+  writeEncryptedProfiles(payload);
+  send(res, 200, readEncryptedProfiles());
+}
+
 function websocketKey(request) {
   const url = new URL(request.url || "/", `http://${request.headers.host || "vps"}`);
   return request.headers["x-api-key"] || url.searchParams.get("key") || "";
@@ -802,6 +821,12 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/v1/public-url") {
       refreshPublicUrl();
       send(res, 200, { publicUrl: state.publicUrl || null });
+      return;
+    }
+
+    if (pathname === "/v1/profile") {
+      const bodyText = req.method === "PUT" ? await readBody(req) : "";
+      await handleProfile(req, res, bodyText);
       return;
     }
 
