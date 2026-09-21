@@ -183,6 +183,11 @@ function UnlockGate() {
               )}
               Join bridge
             </Button>
+            <div className="rounded-lg border border-border bg-background/70 p-3 text-xs leading-relaxed text-muted-foreground">
+              <p className="flex items-center gap-2 font-medium text-foreground"><ShieldCheck className="size-3.5 text-live" /> Stable key rule</p>
+              <p className="mt-1">Use the same Render secret every time. On Termux, load it from <code className="font-mono text-foreground">$HOME/omega-hub-key.txt</code>; never generate a new key during a restart.</p>
+              <p className="mt-1">Canonical hub: <code className="font-mono text-foreground">omega-hub-canonical.onrender.com</code></p>
+            </div>
           </form>
         </div>
       </Card>
