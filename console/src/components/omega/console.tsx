@@ -3,15 +3,22 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity,
   BatteryCharging,
+  Check,
+  CheckCircle2,
   ChevronRight,
   CircleDot,
   Folder,
+  KeyRound,
   LoaderCircle,
   Lock,
+  LockKeyhole,
   Network,
   Radio,
+  Route,
   Server,
   Send,
+  ShieldCheck,
+  Sparkles,
   TerminalSquare,
   Unplug,
   Wifi,
@@ -123,14 +130,15 @@ function UnlockGate() {
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center gap-8 px-5 py-10">
       <div className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          Termux control plane
+          OMEGA // mesh activation
         </p>
-        <h1 className="text-4xl font-medium tracking-tight">OMEGA Mesh</h1>
+        <h1 className="text-4xl font-medium tracking-tight">Bring the mesh online.</h1>
         <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-          This console joins the unified Omega VPS mesh and shows both live
-          peers: the VPS hub and the reverse-connected Termux node.
+          One control plane for your VPS, reverse-connected Termux node, and home
+          network. Activate each link once, then let OMEGA prove the path.
         </p>
       </div>
+      <ActivationRail />
       <Card className="rounded-xl p-1">
         <div className="rounded-lg bg-card p-5">
           <div className="mb-5 flex items-center justify-between gap-3">
@@ -179,6 +187,29 @@ function UnlockGate() {
         </div>
       </Card>
     </main>
+  );
+}
+
+function ActivationRail() {
+  const steps = [
+    ["01", "Connect VPS", "Authenticated hub"],
+    ["02", "Pair Termux", "Reverse bridge"],
+    ["03", "Reach home", "CGNAT-safe route"],
+    ["04", "Verify trust", "Secrets stay local"],
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {steps.map(([number, title, detail], index) => (
+        <div key={number} className="activation-step rounded-lg bg-card/70 p-3">
+          <div className="flex items-center justify-between">
+            <span className="font-mono text-[10px] text-muted-foreground">{number}</span>
+            {index === 0 ? <CheckCircle2 className="size-4 text-live" /> : <CircleDot className="size-4 text-muted-foreground" />}
+          </div>
+          <p className="mt-3 text-xs font-medium">{title}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{detail}</p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -234,6 +265,7 @@ function BridgeWorkspace() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+        <MeshHero live={live} termuxTools={tools.data?.tools ?? []} creds={creds} />
         <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatCard
             label="Bridge"
@@ -290,6 +322,109 @@ function BridgeWorkspace() {
           </TabsContent>
         </Tabs>
       </main>
+    </div>
+  );
+}
+
+function MeshHero({
+  live,
+  termuxTools,
+  creds,
+}: {
+  live: boolean;
+  termuxTools: Array<{ name: string; description: string }>;
+  creds: { url: string; apiKey: string };
+}) {
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<string[]>([]);
+  const hubReady = live;
+  const termuxReady = termuxTools.length > 0;
+
+  async function runAutopilot() {
+    setRunning(true);
+    setReport([]);
+    const checks: Array<[string, string]> = [
+      ["VPS hub", "hub_ping"],
+      ["Termux bridge", "list_peers"],
+      ["Network path", "network_snapshot"],
+    ];
+    for (const [label, name] of checks) {
+      try {
+        const result = await callMcpTool({ data: { ...creds, name, timeoutMs: 20000 } });
+        setReport((current) => [...current, `${result.ok ? "PASS" : "WARN"}  ${label}`]);
+      } catch {
+        setReport((current) => [...current, `WARN  ${label} · peer not answering`]);
+      }
+    }
+    setRunning(false);
+  }
+
+  return (
+    <section className="mesh-hero overflow-hidden rounded-2xl border border-border bg-card/80 p-1">
+      <div className="relative rounded-xl p-5 sm:p-6">
+        <div className="mesh-grid" aria-hidden="true" />
+        <div className="relative grid gap-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div>
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <Sparkles className="size-3.5 text-warn" />
+              Mission control
+            </div>
+            <h2 className="mt-3 max-w-xl text-3xl font-medium tracking-tight sm:text-4xl">
+              A private path home, visible at a glance.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+              OMEGA turns a VPS, phone, and router into one living mesh. The autopilot checks the path instead of making you guess which hop failed.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <Button type="button" onClick={runAutopilot} disabled={running}>
+                {running ? <LoaderCircle className="animate-spin" /> : <Route className="size-4" />}
+                {running ? "Tracing mesh…" : "Run mesh autopilot"}
+              </Button>
+              <span className="text-xs text-muted-foreground">No credentials are sent to the browser map.</span>
+            </div>
+            {report.length ? (
+              <div className="mt-4 flex flex-wrap gap-2" aria-live="polite">
+                {report.map((line) => <span key={line} className="rounded-full bg-muted px-3 py-1 font-mono text-[11px] text-muted-foreground">{line}</span>)}
+              </div>
+            ) : null}
+          </div>
+          <MeshMap hubReady={hubReady} termuxReady={termuxReady} />
+        </div>
+        <TrustStrip />
+      </div>
+    </section>
+  );
+}
+
+function MeshMap({ hubReady, termuxReady }: { hubReady: boolean; termuxReady: boolean }) {
+  const nodes = [
+    { name: "REMOTE", detail: "split tunnel", className: "mesh-node remote" },
+    { name: "VPS RELAY", detail: hubReady ? "authenticated" : "waiting", className: "mesh-node relay", ready: hubReady },
+    { name: "TERMUX", detail: termuxReady ? "reverse link" : "reconnecting", className: "mesh-node termux", ready: termuxReady },
+    { name: "HOME LAN", detail: "WireGuard route", className: "mesh-node home", ready: true },
+  ];
+  return (
+    <div className="mesh-map relative min-h-64 rounded-xl bg-background/75 p-4" aria-label="OMEGA mesh topology">
+      <div className="mesh-line mesh-line-a" />
+      <div className="mesh-line mesh-line-b" />
+      <div className="mesh-line mesh-line-c" />
+      {nodes.map((node) => (
+        <div key={node.name} className={`${node.className} ${node.ready ? "is-ready" : ""}`}>
+          <span className="mesh-pulse" />
+          <span className="font-mono text-[10px] tracking-[0.14em]">{node.name}</span>
+          <span className="mt-1 text-[11px] text-muted-foreground">{node.detail}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrustStrip() {
+  return (
+    <div className="mt-5 grid gap-2 border-t border-border/70 pt-4 sm:grid-cols-3">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="size-4 text-live" /><span><strong className="text-foreground">Encrypted profiles</strong> · AES-GCM backup</span></div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground"><KeyRound className="size-4 text-warn" /><span><strong className="text-foreground">Runtime-only key</strong> · never committed</span></div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground"><LockKeyhole className="size-4 text-live" /><span><strong className="text-foreground">Least exposure</strong> · local router credentials</span></div>
     </div>
   );
 }
