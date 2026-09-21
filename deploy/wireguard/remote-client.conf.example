@@ -1,0 +1,11 @@
+# Copy to a device-specific .conf file and replace placeholders.
+# This is split tunnel: only Omega mesh and home LAN use WireGuard.
+[Interface]
+PrivateKey = <REMOTE_CLIENT_PRIVATE_KEY>
+Address = 10.66.0.3/32
+
+[Peer]
+PublicKey = <VPS_WIREGUARD_PUBLIC_KEY>
+Endpoint = <VPS_PUBLIC_IP_OR_DNS>:51820
+AllowedIPs = 10.66.0.0/24, 192.168.88.0/24
+PersistentKeepalive = 25
