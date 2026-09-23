@@ -22,6 +22,8 @@ The official Termux:Boot behavior is important: installing the add-on and placin
 
 The corrected private bootstrap creates executable runit `run` files for `omega-mcp`, `omega-reverse`, `omega-cloudflared`, and `omega-ngrok`, enables them with `sv-enable`, and installs `$HOME/.termux/boot/00-omega-services` that runs `termux-wake-lock`, sources `start-services.sh`, and starts the enabled services. Each runit service restarts its child when it exits. Runtime credentials are read from private files rather than Git.
 
+The boot entrypoint writes to `$HOME/.omega/omega-boot.log` before doing any other work and uses absolute `HOME` and `PREFIX` values. An absent boot log means Termux:Boot did not execute the script at all; it is not a failure inside the Omega services. The canonical template is [`deploy/termux/00-omega-services`](../deploy/termux/00-omega-services).
+
 Install Termux:Boot, open it once, and keep the boot script executable. Install `termux-services`, restart the Termux shell once so its service daemon is available, and disable Android battery optimization for Termux and Termux:Boot. These requirements come from the official [Termux:Boot instructions](https://github.com/termux/termux-boot) and [termux-services instructions](https://github.com/termux/termux-services).
 
 Android battery optimization must be disabled for Termux and Termux:Boot if the processes are expected to remain alive after the screen is locked. Android may otherwise suspend or kill background processes regardless of the shell configuration.

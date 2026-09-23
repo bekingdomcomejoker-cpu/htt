@@ -1,0 +1,19 @@
+#!/data/data/com.termux/files/usr/bin/sh
+
+# Installed by omega-persistent-setup.sh. Keep this file executable.
+HOME=/data/data/com.termux/files/home
+PREFIX=/data/data/com.termux/files/usr
+mkdir -p "$HOME/.omega"
+exec >>"$HOME/.omega/omega-boot.log" 2>&1
+printf '%s boot-entrypoint-start\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+termux-wake-lock 2>/dev/null || true
+
+# Termux:Boot does not automatically start termux-services.
+if [ -f "$PREFIX/etc/profile.d/start-services.sh" ]; then
+  . "$PREFIX/etc/profile.d/start-services.sh"
+else
+  printf '%s missing-start-services-script\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+fi
+
+printf '%s starting-omega-services\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+exec "$HOME/bin-omega-start"
