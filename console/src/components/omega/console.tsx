@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity,
   BatteryCharging,
+  Bot,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -12,6 +13,7 @@ import {
   LoaderCircle,
   Lock,
   LockKeyhole,
+  MessageSquare,
   Network,
   Radio,
   Route,
@@ -38,6 +40,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { callMcpTool, listMcpTools, probeMcpHealth } from "@/lib/mcp/actions";
+import { askManusAssistant } from "@/lib/assistant/actions";
 import { DEFAULT_MCP_URL } from "@/lib/omega/defaults";
 import { useOmegaStore } from "@/lib/omega/store";
 import type { BatteryInfo, ConnectorInfo } from "@/lib/omega/types";
@@ -70,6 +73,97 @@ function parseBattery(text: string): BatteryInfo | null {
 function parseConnectors(text: string): ConnectorInfo[] {
   const parsed = parseMaybeJson(text) as { connectors?: ConnectorInfo[] } | null;
   return parsed?.connectors ?? [];
+}
+
+function AssistantPanel({ creds }: { creds: { url: string; apiKey: string } }) {
+  const ask = useMutation({ mutationFn: askManusAssistant });
+  const relay = useMutation({ mutationFn: (body: string) => callMcpTool({ data: { ...creds, name: "inbox_post", args: { to: "termux", body }, timeoutMs: 20000 } }) });
+  const readRelay = useMutation({ mutationFn: () => callMcpTool({ data: { ...creds, name: "inbox_read", args: { for: "*" }, timeoutMs: 20000 } }) });
+  const [prompt, setPrompt] = useState("");
+  const [termuxMessage, setTermuxMessage] = useState("");
+  const [termuxReply, setTermuxReply] = useState("No Termux reply loaded.");
+  const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const next = prompt.trim();
+    if (!next || ask.isPending) return;
+    try {
+      const response = await ask.mutateAsync({ data: { prompt: next, history: history.slice(-8) } });
+      setHistory((current) => [...current, { role: "user", content: next }, { role: "assistant", content: response.content }]);
+      setPrompt("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Assistant request failed");
+    }
+  }
+  async function sendToTermux(event: FormEvent) {
+    event.preventDefault();
+    const body = termuxMessage.trim();
+    if (!body || relay.isPending) return;
+    try { await relay.mutateAsync(body); setTermuxMessage(""); toast.success("Message sent to Termux"); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Termux relay failed"); }
+  }
+  async function loadTermuxReplies() {
+    try { const result = await readRelay.mutateAsync(); setTermuxReply(result.text || "No messages returned."); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not read Termux replies"); }
+  }
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+      <Card className="rounded-xl p-1">
+        <div className="rounded-lg p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base"><Bot className="size-4" />Manus Assistant</CardTitle>
+              <CardDescription>Ask the Manus LLM from the canonical OMEGA console. This does not route to a local model.</CardDescription>
+            </div>
+            <Badge variant={ask.isPending ? "warn" : "live"}>{ask.isPending ? "Thinking" : "Ready"}</Badge>
+          </div>
+          <div className="mt-5 max-h-[430px] min-h-56 space-y-3 overflow-auto rounded-md bg-background p-4">
+            {history.length ? history.map((entry, index) => (
+              <div key={`${entry.role}-${index}`} className={`rounded-md p-3 text-sm ${entry.role === "user" ? "ml-8 bg-muted" : "mr-8 border border-border"}`}>
+                <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{entry.role === "user" ? "You" : "Manus"}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{entry.content}</p>
+              </div>
+            )) : <p className="text-sm text-muted-foreground">The assistant response will appear here. Try asking for a deployment explanation, a test plan, or help interpreting a Termux result.</p>}
+          </div>
+          <form className="mt-4 space-y-3" onSubmit={submit}>
+            <Textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask Manus anything about this mesh..." rows={4} />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">History stays in this browser session.</span>
+              <Button type="submit" disabled={ask.isPending || !prompt.trim()}>{ask.isPending ? <LoaderCircle className="animate-spin" /> : <Sparkles className="size-4" />} Ask Manus</Button>
+            </div>
+          </form>
+        </div>
+      </Card>
+      <Card className="rounded-xl p-1">
+        <div className="rounded-lg p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base"><MessageSquare className="size-4" />Termux message bridge</CardTitle>
+              <CardDescription>Send from this website to the phone CLI and load replies posted back through the existing OMEGA inbox.</CardDescription>
+            </div>
+            <Badge variant="live">TWO-WAY</Badge>
+          </div>
+          <form className="mt-5 space-y-3" onSubmit={sendToTermux}>
+            <Textarea value={termuxMessage} onChange={(event) => setTermuxMessage(event.target.value)} placeholder="Message the Termux CLI..." rows={4} />
+            <Button type="submit" disabled={relay.isPending || !termuxMessage.trim()}>{relay.isPending ? <LoaderCircle className="animate-spin" /> : <Send className="size-4" />} Send to Termux</Button>
+          </form>
+          <div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Termux can reply with its existing <code className="font-mono text-foreground">inbox_post</code> tool.</p><Button type="button" variant="secondary" size="sm" onClick={() => void loadTermuxReplies()} disabled={readRelay.isPending}>{readRelay.isPending ? <LoaderCircle className="animate-spin" /> : "Load replies"}</Button></div>
+          <pre className="mt-3 max-h-48 overflow-auto rounded-md bg-background p-4 font-mono text-xs leading-relaxed">{termuxReply}</pre>
+        </div>
+      </Card>
+      <Card className="rounded-xl p-1">
+        <div className="rounded-lg p-5">
+          <CardTitle className="text-base">Routing contract</CardTitle>
+          <CardDescription className="mt-1">The assistant path is additive and separate from Termux execution.</CardDescription>
+          <div className="mt-5 space-y-3 text-sm">
+            <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Assistant</p><p className="mt-1 font-mono text-xs">browser → Render server function → Manus LLM</p></div>
+            <div className="rounded-md bg-muted p-3"><p className="text-xs text-muted-foreground">Existing command path</p><p className="mt-1 font-mono text-xs">browser → OMEGA hub → reverse Termux bridge</p></div>
+            <div className="flex items-start gap-2 rounded-md border border-border p-3 text-xs leading-relaxed text-muted-foreground"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-live" />No Manus or hub secret is embedded in the client bundle.</div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
 }
 
 export function OmegaConsole({ joinKey }: { joinKey?: string }) {
@@ -309,6 +403,7 @@ function BridgeWorkspace() {
             <TabsTrigger value="files">Files</TabsTrigger>
             <TabsTrigger value="network">Network</TabsTrigger>
             <TabsTrigger value="tools">Tools</TabsTrigger>
+            <TabsTrigger value="assistant">Assistant</TabsTrigger>
           </TabsList>
           <TabsContent value="mesh">
             <MeshPanel creds={creds} tools={tools.data?.tools ?? []} />
@@ -324,6 +419,9 @@ function BridgeWorkspace() {
           </TabsContent>
           <TabsContent value="tools">
             <ToolsPanel creds={creds} tools={tools.data?.tools ?? []} />
+          </TabsContent>
+          <TabsContent value="assistant">
+            <AssistantPanel creds={creds} />
           </TabsContent>
         </Tabs>
       </main>
