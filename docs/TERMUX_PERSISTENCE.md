@@ -18,7 +18,11 @@ The bootstrap writes credentials to mode-600 runtime files, starts only missing 
 
 ## Boot and crash recovery
 
-For phone-boot startup, install Termux:Boot and place the bootstrap invocation in `$HOME/.termux/boot/`. The existing `omega-cloudflared` service is supervised by `termux-services`. If `omega-mcp`, `omega-reverse`, or `omega-ngrok` are converted to runit services on a device, each service should use a small executable `run` file and read credentials from private runtime files rather than from Git.
+The official Termux:Boot behavior is important: installing the add-on and placing a script in `$HOME/.termux/boot/` does not, by itself, start the `termux-services` daemon. The boot script must source `$PREFIX/etc/profile.d/start-services.sh`. The official service workflow also requires `sv-enable <service>` for persistent enablement; `sv up <service>` only starts a service in the current session.
+
+The corrected private bootstrap creates executable runit `run` files for `omega-mcp`, `omega-reverse`, `omega-cloudflared`, and `omega-ngrok`, enables them with `sv-enable`, and installs `$HOME/.termux/boot/00-omega-services` that runs `termux-wake-lock`, sources `start-services.sh`, and starts the enabled services. Each runit service restarts its child when it exits. Runtime credentials are read from private files rather than Git.
+
+Install Termux:Boot, open it once, and keep the boot script executable. Install `termux-services`, restart the Termux shell once so its service daemon is available, and disable Android battery optimization for Termux and Termux:Boot. These requirements come from the official [Termux:Boot instructions](https://github.com/termux/termux-boot) and [termux-services instructions](https://github.com/termux/termux-services).
 
 Android battery optimization must be disabled for Termux and Termux:Boot if the processes are expected to remain alive after the screen is locked. Android may otherwise suspend or kill background processes regardless of the shell configuration.
 
